@@ -38,19 +38,23 @@
   .lower { display:flex; gap:18px; margin-top:22px; }
   .lower .col { flex:1; }
   .lower .imgph { width:100%; height:120px; background:var(--ph); border:1px solid var(--ph-bd); margin-bottom:10px; }
+
   .floatad { position:fixed; right:14px; bottom:12px; width:480px; max-width:calc(100vw - 28px);
-             height:114px; overflow:hidden; z-index:50; border-radius:3px; background:#000;
+             height:114px; overflow:hidden; z-index:50; border-radius:3px; background:#000; cursor:pointer;
              box-shadow:0 4px 18px rgba(0,0,0,.22); transition:height .5s cubic-bezier(.4,0,.2,1); }
   .floatad .asset { position:absolute; inset:0; width:100%; height:100%; object-fit:contain; display:none; }
   .floatad #fv-vid { background:#000; }
-  .floatad .overlay { position:absolute; z-index:6; }
-  .floatad .adtag { top:0; left:0; background:rgba(0,0,0,.45); color:#fff; font-size:8px; letter-spacing:.5px;
+  .floatad .overlay { position:absolute; }
+  .floatad .adtag { top:0; left:0; z-index:6; background:rgba(0,0,0,.45); color:#fff; font-size:8px; letter-spacing:.5px;
              padding:1px 5px; text-transform:uppercase; }
-  .floatad .ctrl { top:0; right:0; display:flex; }
-  .floatad .ctrl button { width:20px; height:18px; border:none; cursor:pointer; font-size:12px; line-height:1;
-             background:rgba(0,0,0,.55); color:#fff; }
+  .floatad .ctrl { top:0; right:0; z-index:8; display:flex; gap:1px; }
+  .floatad .ctrl button { min-width:22px; height:18px; border:none; cursor:pointer; font-size:11px; line-height:1;
+             background:rgba(0,0,0,.55); color:#fff; padding:0 4px; }
   .floatad .hint { inset:0; display:flex; align-items:center; justify-content:center; color:#cfd4da;
              font-size:12px; pointer-events:none; z-index:4; }
+  .floatad .tap { left:0; right:0; bottom:8px; z-index:7; display:flex; justify-content:center; pointer-events:none; }
+  .floatad .tap button { pointer-events:auto; background:rgba(0,0,0,.72); color:#fff; border:none; border-radius:20px;
+             font-size:12px; padding:6px 14px; cursor:pointer; }
   @media(max-width:980px){ .grid{grid-template-columns:1fr} .main{width:100%} .lb .ph{height:70px} }
 </style>
 </head>
@@ -84,10 +88,15 @@
   </div>
 </div>
 
-<div class="floatad" id="fv-unit">
+<!-- Click-through landing page for the whole unit -->
+<div class="floatad" id="fv-unit" title="Visit PedZINC Plus C">
   <span class="overlay adtag">Ad</span>
-  <div class="overlay ctrl"><button id="fv-close" title="Close">&times;</button></div>
+  <div class="overlay ctrl">
+    <button id="fv-sound" title="Turn sound on">&#128263;</button>
+    <button id="fv-close" title="Close">&times;</button>
+  </div>
   <span class="hint" id="fv-hint">Loading video&hellip;</span>
+  <div class="overlay tap" id="fv-tap"><button type="button">&#128266; Tap for sound</button></div>
   <video class="asset" id="fv-vid" muted playsinline preload="auto">
     <source src="Pedzinc%20Hole%20in%20the%20wall%2015s.mp4" type="video/mp4">
   </video>
@@ -96,14 +105,22 @@
 
 <script>
 (function(){
+  var CLICK_URL='https://www.facebook.com/pedzincplusc'; // landing page
+
   var unit=document.getElementById('fv-unit'),
       vid=document.getElementById('fv-vid'),
       stat=document.getElementById('fv-stat'),
       hint=document.getElementById('fv-hint'),
+      tap=document.getElementById('fv-tap'),
+      soundBtn=document.getElementById('fv-sound'),
       closeBtn=document.getElementById('fv-close');
+
   var STATIC_MS=4000, FALLBACK_VID_MS=6000, SLIDE_MS=600;
   var statRatio=452/1910, vidRatio=9/16, token=0, timer=null;
+  var wantSound=false;
+  var MUTE='\uD83D\uDD07', SOUND='\uD83D\uDD0A';
   function clearT(){ if(timer){clearTimeout(timer);timer=null;} }
+
   function slideIn(el, ratio){
     var other=(el===vid)?stat:vid;
     el.style.transition='none'; el.style.transform='translateY(110%)';
@@ -114,9 +131,19 @@
     el.style.transform='translateY(0)';
     setTimeout(function(){ other.style.display='none'; }, SLIDE_MS);
   }
+
+  function enableSound(){
+    wantSound=true; vid.muted=false; vid.volume=1;
+    var p=vid.play(); if(p&&p.catch){p.catch(function(){});}
+    soundBtn.innerHTML=SOUND; soundBtn.title='Mute';
+    tap.style.display='none';
+  }
+
   function videoPhase(){
     var my=++token; clearT(); hint.style.display='';
     slideIn(vid, vidRatio);
+    vid.muted=!wantSound;
+    tap.style.display = wantSound ? 'none' : 'flex';
     try{ vid.currentTime=0; }catch(e){}
     var p=vid.play(); if(p&&p.catch){ p.catch(function(){}); }
     vid.onended=function(){ if(my===token) staticPhase(); };
@@ -128,11 +155,32 @@
       unit.style.height=(unit.clientWidth*vidRatio)+'px'; } arm(); };
   }
   vid.addEventListener('playing', function(){ hint.style.display='none'; });
+
   function staticPhase(){
     var my=++token; clearT(); slideIn(stat, statRatio);
+    tap.style.display='none';
     timer=setTimeout(function(){ if(my===token) videoPhase(); }, STATIC_MS);
   }
-  closeBtn.onclick=function(){ unit.style.display='none'; clearT(); try{vid.pause();}catch(e){} };
+
+  // tap-for-sound (does not navigate)
+  tap.querySelector('button').addEventListener('click', function(e){ e.stopPropagation(); enableSound(); });
+
+  // corner sound toggle (does not navigate)
+  soundBtn.addEventListener('click', function(e){
+    e.stopPropagation();
+    if(!wantSound){ enableSound(); }
+    else { wantSound=false; vid.muted=true; soundBtn.innerHTML=MUTE; soundBtn.title='Turn sound on'; }
+  });
+
+  // close (does not navigate)
+  closeBtn.addEventListener('click', function(e){ e.stopPropagation(); unit.style.display='none'; clearT(); try{vid.pause();}catch(err){} });
+
+  // click-through on the creative -> landing page
+  unit.addEventListener('click', function(e){
+    if(e.target.closest('.ctrl') || e.target.closest('#fv-tap')) return;
+    window.open(CLICK_URL, '_blank', 'noopener');
+  });
+
   videoPhase();
 })();
 </script>
